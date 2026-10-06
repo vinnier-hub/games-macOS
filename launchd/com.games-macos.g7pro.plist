@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key><string>com.games-macos.g7pro</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/usr/local/bin/g7pro-driver</string>
+        <string>--source</string><string>auto</string>
+    </array>
+    <key>RunAtLoad</key><true/>
+    <!-- Exits when the pad is unplugged; launchd restarts it (throttled). -->
+    <key>KeepAlive</key><true/>
+    <key>ThrottleInterval</key><integer>3</integer>
+    <key>StandardErrorPath</key><string>/tmp/g7pro-driver.log</string>
+</dict>
+</plist>
