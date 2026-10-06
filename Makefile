@@ -6,6 +6,11 @@ LIBUSB_LIBS   := $(shell pkg-config --libs libusb-1.0 2>/dev/null || echo -lusb-
 UNAME := $(shell uname -s)
 ifeq ($(UNAME),Darwin)
 FRAMEWORKS = -framework IOKit -framework CoreFoundation
+# `make STATIC=1` links libusb statically so the binary runs without Homebrew.
+ifdef STATIC
+LIBUSB_LIBS = $(shell brew --prefix libusb)/lib/libusb-1.0.a
+FRAMEWORKS += -framework Security -lobjc
+endif
 endif
 
 g7pro-driver: src/main.c src/usb_gip.c src/vhid_mac.c src/bt_hid.c $(CORE)

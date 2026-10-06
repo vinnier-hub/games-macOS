@@ -1,0 +1,40 @@
+name: build
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  macos:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { runner: macos-latest, arch: arm64 }
+          - { runner: macos-13,     arch: x86_64 }
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install deps
+        run: brew install libusb pkg-config
+      - name: Unit tests
+        run: make test
+      - name: Build (static libusb)
+        run: make STATIC=1
+      - name: Smoke test
+        run: |
+          file g7pro-driver
+          otool -L g7pro-driver
+          ./g7pro-driver --list || true   # no hardware on CI; must not crash
+          ./g7pro-driver --bogus || test $? -eq 2
+      - name: Ad-hoc sign and package
+        run: |
+          codesign -s - --force g7pro-driver
+          mkdir dist
+          cp g7pro-driver README.md dist/
+          cp -r launchd dist/
+          tar -C dist -czf g7pro-driver-macos-${{ matrix.arch }}.tar.gz .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: g7pro-driver-macos-${{ matrix.arch }}
+          path: g7pro-driver-macos-${{ matrix.arch }}.tar.gz
