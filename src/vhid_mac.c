@@ -6,7 +6,19 @@
 #ifdef __APPLE__
 #include <CoreFoundation/CoreFoundation.h>
 #include <IOKit/hid/IOHIDKeys.h>
+#include <IOKit/IOKitLib.h>
+
+/* IOHIDUserDevice.h is not in the public macOS SDK, but the symbols are exported
+ * by IOKit.framework (Karabiner and others use them), so declare them here. */
+#if __has_include(<IOKit/hid/IOHIDUserDevice.h>)
 #include <IOKit/hid/IOHIDUserDevice.h>
+#else
+typedef struct __IOHIDUserDevice *IOHIDUserDeviceRef;
+extern IOHIDUserDeviceRef IOHIDUserDeviceCreateWithProperties(
+    CFAllocatorRef allocator, CFDictionaryRef properties, IOOptionBits options);
+extern IOReturn IOHIDUserDeviceHandleReport(
+    IOHIDUserDeviceRef device, uint8_t *report, CFIndex reportLength);
+#endif
 
 struct vhid { IOHIDUserDeviceRef dev; };
 
@@ -43,7 +55,7 @@ struct vhid *vhid_create(void)
 
 int vhid_send(struct vhid *v, const uint8_t *r, size_t len)
 {
-    return IOHIDUserDeviceHandleReport(v->dev, r, (CFIndex)len) == kIOReturnSuccess ? 0 : -1;
+    return IOHIDUserDeviceHandleReport(v->dev, (uint8_t *)r, (CFIndex)len) == kIOReturnSuccess ? 0 : -1;
 }
 
 void vhid_destroy(struct vhid *v)
