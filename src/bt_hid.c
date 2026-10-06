@@ -14,6 +14,7 @@ struct bt_ctx {
     void *user;
     int dump, seize;
     volatile sig_atomic_t *stop;
+    int matched, ticks;
 };
 
 static int is_virtual(IOHIDDeviceRef d)
@@ -56,6 +57,7 @@ static void on_match(void *c, IOReturn r, void *sender, IOHIDDeviceRef d)
             IOHIDDeviceOpen(d, kIOHIDOptionsTypeNone);
         }
     }
+    ctx->matched++;
     fprintf(stderr, "using HID device \"%s\"\n", buf);
     IOHIDDeviceRegisterInputValueCallback(d, on_value, ctx);
 }
@@ -75,6 +77,9 @@ static void on_tick(CFRunLoopTimerRef t, void *info)
     (void)t;
     struct bt_ctx *ctx = info;
     if (*ctx->stop) CFRunLoopStop(CFRunLoopGetCurrent());
+    if (++ctx->ticks == 25 && !ctx->matched)
+        fprintf(stderr, "no gamepad-type HID device found after 5s. Is the pad paired and connected?\n"
+                        "Run --list-hid to see everything macOS can see.\n");
 }
 
 static CFMutableDictionaryRef match_dict(int page, int usage, uint16_t vid, uint16_t pid)
@@ -92,6 +97,49 @@ static CFMutableDictionaryRef match_dict(int page, int usage, uint16_t vid, uint
         CFRelease(n);
     }
     return d;
+}
+
+static void prop_str(IOHIDDeviceRef d, CFStringRef key, char *out, size_t n)
+{
+    CFTypeRef v = IOHIDDeviceGetProperty(d, key);
+    snprintf(out, n, "?");
+    if (v && CFGetTypeID(v) == CFStringGetTypeID())
+        CFStringGetCString(v, out, (CFIndex)n, kCFStringEncodingUTF8);
+}
+
+static int prop_int(IOHIDDeviceRef d, CFStringRef key)
+{
+    int x = -1;
+    CFTypeRef v = IOHIDDeviceGetProperty(d, key);
+    if (v && CFGetTypeID(v) == CFNumberGetTypeID()) CFNumberGetValue(v, kCFNumberIntType, &x);
+    return x;
+}
+
+static void print_dev(const void *v, void *unused)
+{
+    (void)unused;
+    IOHIDDeviceRef d = (IOHIDDeviceRef)v;
+    char name[128], transport[64];
+    prop_str(d, CFSTR(kIOHIDProductKey), name, sizeof name);
+    prop_str(d, CFSTR(kIOHIDTransportKey), transport, sizeof transport);
+    printf("%-34s VID %04x PID %04x  %-10s usage page 0x%02x usage 0x%02x%s\n", name,
+           prop_int(d, CFSTR(kIOHIDVendorIDKey)) & 0xFFFF,
+           prop_int(d, CFSTR(kIOHIDProductIDKey)) & 0xFFFF, transport,
+           prop_int(d, CFSTR(kIOHIDPrimaryUsagePageKey)) & 0xFFFF,
+           prop_int(d, CFSTR(kIOHIDPrimaryUsageKey)) & 0xFFFF,
+           is_virtual(d) ? "  (our virtual device)" : "");
+}
+
+int bt_list(void)
+{
+    IOHIDManagerRef mgr = IOHIDManagerCreate(NULL, kIOHIDOptionsTypeNone);
+    IOHIDManagerSetDeviceMatching(mgr, NULL);
+    CFSetRef devs = IOHIDManagerCopyDevices(mgr);
+    if (!devs) { printf("no HID devices found\n"); CFRelease(mgr); return 1; }
+    CFSetApplyFunction(devs, print_dev, NULL);
+    CFRelease(devs);
+    CFRelease(mgr);
+    return 0;
 }
 
 int bt_run(uint16_t vid, uint16_t pid, const struct hidmap *map, int seize, int dump,
@@ -128,6 +176,7 @@ int bt_run(uint16_t vid, uint16_t pid, const struct hidmap *map, int seize, int 
     return 0;
 }
 #else
+int bt_list(void) { fprintf(stderr, "macOS only\n"); return 1; }
 int bt_run(uint16_t vid, uint16_t pid, const struct hidmap *map, int seize, int dump,
            volatile sig_atomic_t *stop, bt_emit_fn emit, void *ctx)
 {

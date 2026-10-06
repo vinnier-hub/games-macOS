@@ -17,6 +17,7 @@ static void usage(const char *a)
         "usage: %s [options]\n"
         "  --source usb|bt|auto  input transport (default auto: USB first, else Bluetooth)\n"
         "  --list                list attached USB GIP (Xbox One protocol) devices and exit\n"
+        "  --list-hid            list every HID device macOS sees (use to debug Bluetooth)\n"
         "  --dump                print raw input instead of creating the virtual pad\n"
         "  --vid 0xVVVV --pid 0xPPPP   pick a specific device\n"
         "Bluetooth options:\n"
@@ -73,6 +74,7 @@ int main(int argc, char **argv)
 
     for (int i = 1; i < argc; i++) {
         if (!strcmp(argv[i], "--list")) return gip_list() > 0 ? 0 : 1;
+        else if (!strcmp(argv[i], "--list-hid")) return bt_list();
         else if (!strcmp(argv[i], "--dump")) dump = 1;
         else if (!strcmp(argv[i], "--no-seize")) seize = 0;
         else if (!strcmp(argv[i], "--source") && i + 1 < argc) source = argv[++i];
