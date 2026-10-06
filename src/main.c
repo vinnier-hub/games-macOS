@@ -112,7 +112,7 @@ int main(int argc, char **argv)
         rc = run_usb(dev, dump);
         gip_close(dev);
     } else {
-        rc = bt_run(vid, pid, &map, seize, dump, &stop, emit, NULL);
+        rc = bt_run(vid, pid, &map, seize && !dump, dump, &stop, emit, NULL);
     }
     vhid_destroy(vh);
     return rc;

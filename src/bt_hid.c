@@ -14,7 +14,7 @@ struct bt_ctx {
     void *user;
     int dump, seize;
     volatile sig_atomic_t *stop;
-    int matched, ticks;
+    int matched, ticks, values;
 };
 
 static int is_virtual(IOHIDDeviceRef d)
@@ -28,6 +28,7 @@ static void on_value(void *c, IOReturn r, void *sender, IOHIDValueRef v)
 {
     (void)r; (void)sender;
     struct bt_ctx *ctx = c;
+    ctx->values++;
     IOHIDElementRef el = IOHIDValueGetElement(v);
     uint32_t key = (IOHIDElementGetUsagePage(el) << 16) | IOHIDElementGetUsage(el);
     long val = IOHIDValueGetIntegerValue(v);
@@ -59,6 +60,8 @@ static void on_match(void *c, IOReturn r, void *sender, IOHIDDeviceRef d)
     }
     ctx->matched++;
     fprintf(stderr, "using HID device \"%s\"\n", buf);
+    /* Re-opening drops the run loop scheduling, so always schedule explicitly. */
+    IOHIDDeviceScheduleWithRunLoop(d, CFRunLoopGetCurrent(), kCFRunLoopDefaultMode);
     IOHIDDeviceRegisterInputValueCallback(d, on_value, ctx);
 }
 
@@ -77,6 +80,9 @@ static void on_tick(CFRunLoopTimerRef t, void *info)
     (void)t;
     struct bt_ctx *ctx = info;
     if (*ctx->stop) CFRunLoopStop(CFRunLoopGetCurrent());
+    if (ctx->ticks == 40 && ctx->matched && !ctx->values)
+        fprintf(stderr, "pad found but no input received. Press buttons; if still nothing, allow\n"
+                        "Terminal in Privacy & Security > Input Monitoring, then restart Terminal.\n");
     if (++ctx->ticks == 25 && !ctx->matched)
         fprintf(stderr, "no gamepad-type HID device found after 5s. Is the pad paired and connected?\n"
                         "Run --list-hid to see everything macOS can see.\n");
