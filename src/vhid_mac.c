@@ -47,7 +47,11 @@ struct vhid *vhid_create(void)
 
     IOHIDUserDeviceRef dev = IOHIDUserDeviceCreateWithProperties(NULL, p, 0);
     CFRelease(p);
-    if (!dev) return NULL;
+    if (!dev) {
+        fprintf(stderr, "IOHIDUserDeviceCreateWithProperties returned NULL: macOS refused to create the virtual device\n");
+        return NULL;
+    }
+    fprintf(stderr, "virtual Xbox controller created (VID 045e PID 02fd)\n");
     struct vhid *v = calloc(1, sizeof *v);
     v->dev = dev;
     return v;
@@ -55,7 +59,13 @@ struct vhid *vhid_create(void)
 
 int vhid_send(struct vhid *v, const uint8_t *r, size_t len)
 {
-    return IOHIDUserDeviceHandleReport(v->dev, (uint8_t *)r, (CFIndex)len) == kIOReturnSuccess ? 0 : -1;
+    static int warned;
+    IOReturn rc = IOHIDUserDeviceHandleReport(v->dev, (uint8_t *)r, (CFIndex)len);
+    if (rc != kIOReturnSuccess && !warned) {
+        warned = 1;
+        fprintf(stderr, "sending report to virtual device failed: IOReturn 0x%x\n", rc);
+    }
+    return rc == kIOReturnSuccess ? 0 : -1;
 }
 
 void vhid_destroy(struct vhid *v)
